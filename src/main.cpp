@@ -42,7 +42,7 @@ int main() {
 
     int lane = MID_LANE; // Car starts from middle lane
     double velocity_increment = 0.224;
-    double max_velocity = 49.0;
+    double max_velocity = 22;
     double car_velocity = 0.0;
 
 
@@ -109,9 +109,15 @@ int main() {
 
                     int curr_path_size = previous_path_x.size();
 
+                    if (curr_path_size > 0) {
+                        car_s = end_path_s;
+                    }
+
                     bool car_in_front = false;
                     bool car_left = false;
                     bool car_right = false;
+
+
 
                     // Analyse vehicles in proximity of our car
                     // TODO: In the future, we can analyse the trajectory of cars and predict what action they are taking
@@ -134,13 +140,16 @@ int main() {
 
                         // anticipate where the other car will be in the next update cycle
                         o_car_s += TIME_INC * o_car_velocity;
+
                         double dist_btw_cars = o_car_s - car_s;
-                        if (dist_btw_cars >= 0 && dist_btw_cars <  SAFE_DISTANCE) {
-                            if (lane == o_car_lane) {
+                        if (dist_btw_cars > (-SAFE_DISTANCE + 10) && dist_btw_cars <  SAFE_DISTANCE) {
+                            if (lane == o_car_lane && dist_btw_cars > 0) {
                                 car_in_front = true;
-                            } else if ((lane - o_car_lane) == 1) {
+                            }
+                            if ((lane - o_car_lane) == 1) {
                                 car_left = true;
-                            } else if ((lane - o_car_lane) == -1) {
+                            }
+                            if ((lane - o_car_lane) == -1) {
                                 car_right = true;
                             }
                         }
@@ -154,9 +163,9 @@ int main() {
                             lane++;
                             cout << "Change lane right" << endl;
                         } else {
-                            car_velocity -= velocity_increment;
                             cout << "Reduce speed " << car_velocity << endl;
                         }
+                        car_velocity -= velocity_increment;
                     } else if (car_velocity < max_velocity){
                         car_velocity += velocity_increment;
                         cout << "Increase speed " << car_velocity << endl;
@@ -164,28 +173,33 @@ int main() {
 
                     // Points on new car path
                     vector<double> car_points_x, car_points_y;
-                    double ref_yaw;
+                    double ref_yaw = deg2rad(car_yaw);
+                    double ref_x = car_x;
+                    double ref_y = car_y;
 
                     // Add path starting points
                     if (curr_path_size > 1) {
+                        ref_x = previous_path_x[curr_path_size - 1];
+                        ref_y = previous_path_y[curr_path_size - 1];
+
+                        double prev_ref_x = previous_path_x[curr_path_size - 2];
+                        double prev_ref_y = previous_path_y[curr_path_size - 2];
+
+                        ref_yaw = atan2(ref_y -  prev_ref_y, ref_x - prev_ref_x);
+
                         car_points_x.push_back(previous_path_x[curr_path_size - 2]);
                         car_points_x.push_back(previous_path_x[curr_path_size - 1]);
 
                         car_points_y.push_back(previous_path_y[curr_path_size - 2]);
                         car_points_y.push_back(previous_path_y[curr_path_size - 1]);
-
-                        ref_yaw = deg2rad(atan2(car_points_y[car_points_y.size() - 1] -  car_points_y[car_points_y.size() - 2], car_points_x[car_points_x.size() - 1] -  car_points_x[car_points_x.size() - 2]));
                     } else {
                         car_points_x.push_back(car_x);
                         car_points_y.push_back(car_y);
-                        ref_yaw = deg2rad(car_yaw);
                     }
-
-                    double ref_x = car_points_x[car_points_x.size() - 1];
-                    double ref_y = car_points_y[car_points_y.size() - 1];
 
                     // Add points after 30, 60 and 90m respectively
                     vector<double> wp30 = getXY(car_s + 30, 2 + lane * 4, map_waypoints_s,map_waypoints_x, map_waypoints_y);
+
                     vector<double> wp60 = getXY(car_s + 60, 2 + lane * 4, map_waypoints_s,map_waypoints_x, map_waypoints_y);
                     vector<double> wp90 = getXY(car_s + 90, 2 + lane * 4, map_waypoints_s,map_waypoints_x, map_waypoints_y);
 
@@ -198,9 +212,12 @@ int main() {
                     car_points_y.push_back(wp90[1]);
 
 
-                    for (int k = 0; k < car_points_x.size(); k++) {
-                        car_points_x[k] = (car_points_x[k] - ref_x) * cos(-ref_yaw) - (car_points_y[k] - ref_y) * sin(-ref_yaw);
-                        car_points_y[k] = (car_points_x[k] - ref_x) * sin(-ref_yaw) + (car_points_y[k] - ref_y) * cos(-ref_yaw);
+                    for (int i = 0; i < car_points_x.size(); i++) {
+                        double x_diff = car_points_x[i] - ref_x;
+                        double y_diff = car_points_y[i] - ref_y;
+
+                        car_points_x[i] = x_diff * cos(-ref_yaw) - y_diff * sin(-ref_yaw);
+                        car_points_y[i] = x_diff * sin(-ref_yaw) + y_diff * cos(-ref_yaw);
                     }
 
                     tk::spline sp;
@@ -213,8 +230,13 @@ int main() {
                     vector<double> next_x_vals;
                     vector<double> next_y_vals;
 
+                    for (int i = 0; i < curr_path_size; i++) {
+                        next_x_vals.push_back(previous_path_x[i]);
+                        next_y_vals.push_back(previous_path_y[i]);
+                    }
+
                     double x_inc = goal_x / (goal_distance / (car_velocity * TIME_INC));
-                    for (int i = 1; i < 50; i++) {
+                    for (int i = 1; i <= 50 - curr_path_size; i++) {
                         double xp = x_inc * i;
                         double yp = sp(xp);
                         double point_x = ref_x + (xp * cos(ref_yaw) - yp * sin(ref_yaw));
