@@ -148,4 +148,4 @@ sudo chmod u+x {simulator_file_name}
  
  [![Highway Driving][image2]](https://youtu.be/1Hnz7K5UkgY)
  
- [image2]: ./images/video-planning.png "Highway Driving"
+ [image2]: images/planning-thumbnail.png "Highway Driving"
