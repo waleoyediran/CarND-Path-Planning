@@ -143,3 +143,9 @@ sudo chmod u+x {simulator_file_name}
 3. Compile: `cmake .. && make`
 4. Run it: `./path_planning`.
 ---
+
+> The video below shows the car driving in the simulator highway
+ 
+ [![Highway Driving][image2]](https://youtu.be/1Hnz7K5UkgY)
+ 
+ [image2]: ./images/video-planning.png "Highway Driving"
